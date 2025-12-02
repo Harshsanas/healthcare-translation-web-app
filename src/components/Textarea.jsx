@@ -16,7 +16,7 @@ const TextArea = ({
     <div className="space-y-2">
       {label && (
         <label className="block text-sm font-medium text-gray-700">
-          {label}
+          {label} 
         </label>
       )}
       <textarea
