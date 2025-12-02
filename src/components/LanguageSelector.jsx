@@ -13,7 +13,7 @@ const LanguageSelector = ({ value, onChange, label, disabled = false }) => {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className="w-full p-3 border rounded-lg bg-white"
+        className="w-full p-3 border-2 border-gray-300 rounded-lg bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {SUPPORTED_LANGUAGES?.map((lang) => (
           <option key={lang.code} value={lang.code}>
@@ -24,5 +24,4 @@ const LanguageSelector = ({ value, onChange, label, disabled = false }) => {
     </div>
   );
 };
-
 export default LanguageSelector;

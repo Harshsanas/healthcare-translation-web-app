@@ -6,17 +6,17 @@ const LanguageSwap = ({ onSwap, disabled = false }) => {
       onClick={onSwap}
       disabled={disabled}
       className={`
-        p-3 rounded-full transition-colors
+        p-3 rounded-full transition-all transform hover:scale-110
         ${
           disabled
-            ? "bg-gray-300 cursor-not-allowed"
-            : "bg-gray-200 hover:bg-gray-300 cursor-pointer"
+            ? "bg-gray-300 cursor-not-allowed opacity-50"
+            : "bg-blue-500 hover:bg-blue-600 cursor-pointer shadow-md"
         }
       `}
       title="Swap languages"
     >
       <svg
-        className="w-5 h-5 text-gray-700"
+        className={`w-6 h-6 ${disabled ? "text-gray-500" : "text-white"}`}
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"
