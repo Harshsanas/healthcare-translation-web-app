@@ -1,14 +1,75 @@
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import LanguageSelector from "./LanguageSelector";
 import TextArea from "./TextArea";
 
 export default function MainContainer() {
-  const [sourceText, setSourceText] = React.useState("");
-  const [translatedText, setTranslatedText] = React.useState("");
-  const [sourceLanguage, setSourceLanguage] = React.useState("en-US");
-  const [targetLanguage, setTargetLanguage] = React.useState("es-ES");
+  const [sourceText, setSourceText] = useState("");
+  const [translatedText, setTranslatedText] = useState("");
+  const [sourceLanguage, setSourceLanguage] = useState("en-US");
+  const [targetLanguage, setTargetLanguage] = useState("es-ES");
+  const [isListening, setIsListening] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
+
+  const recognitionRef = useRef(null);
+  const finalTranscriptRef = useRef("");
+
+  useEffect(() => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      setSpeechSupported(true);
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = sourceLanguage;
+
+      recognition.onresult = (event) => {
+        let interimTranscript = "";
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscriptRef.current += transcript + " ";
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+
+        setSourceText(finalTranscriptRef.current + interimTranscript);
+      };
+
+      recognition.onerror = (event) => {
+        console.error("Speech recognition error:", event.error);
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+    } else {
+      console.warn("Speech recognition not supported in this browser");
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, [sourceLanguage]);
+
+  useEffect(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.lang = sourceLanguage;
+    }
+  }, [sourceLanguage]);
 
   const handleTranslate = () => {
+    if (isListening) {
+      stopListening();
+    }
+
     console.log("Translating:", {
       sourceText,
       sourceLanguage,
@@ -19,8 +80,48 @@ export default function MainContainer() {
     );
   };
 
-  const handleTextToSpeech = () => {
-    console.log("Text to speech:", sourceText);
+  const handleNewTranslation = () => {
+    setSourceText("");
+    setTranslatedText("");
+    finalTranscriptRef.current = "";
+    if (isListening) {
+      stopListening();
+    }
+  };
+
+  const toggleSpeechRecognition = () => {
+    if (!speechSupported) {
+      alert(
+        "Speech recognition is not supported in your browser. Please use Chrome, Edge, or Safari."
+      );
+      return;
+    }
+
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  };
+
+  const startListening = () => {
+    if (recognitionRef.current) {
+      try {
+        finalTranscriptRef.current = sourceText;
+        recognitionRef.current.start();
+        setIsListening(true);
+      } catch (error) {
+        console.error("Error starting speech recognition:", error);
+        setIsListening(false);
+      }
+    }
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    }
   };
 
   return (
@@ -29,26 +130,63 @@ export default function MainContainer() {
         <div className="bg-white rounded-xl shadow-lg p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
-              <h2 className="text-lg font-semibold text-gray-700">From</h2>
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg font-semibold text-gray-700">From</h2>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500">
+                    {isListening ? "Listening..." : ""}
+                  </span>
+                  {isListening && (
+                    <div className="animate-pulse w-3 h-3 bg-red-500 rounded-full"></div>
+                  )}
+                </div>
+              </div>
               <LanguageSelector
                 label="Select Source Language"
                 value={sourceLanguage}
                 onChange={setSourceLanguage}
               />
-              <TextArea
-                label="Enter text to translate"
-                value={sourceText}
-                onChange={setSourceText}
-                placeholder="Type or paste your text here..."
-                rows={8}
-              />
+              <div className="relative">
+                <TextArea
+                  label="Enter text to translate"
+                  value={sourceText}
+                  onChange={setSourceText}
+                  placeholder="Type or paste your text here, or use the microphone..."
+                  rows={8}
+                  required={true}
+                />
+                {/* <div className="absolute bottom-2 right-2 flex gap-2">
+                  {sourceText && (
+                    <button
+                      onClick={() => {
+                        setSourceText("");
+                        finalTranscriptRef.current = "";
+                      }}
+                      className="p-2 bg-gray-200 hover:bg-gray-300 rounded-full transition-colors cursor-pointer"
+                      title="Clear text"
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+                  )}
+                </div> */}
+              </div>
             </div>
-
-            {/* Target Column */}
             <div className="space-y-4">
               <h2 className="text-lg font-semibold text-gray-700">To</h2>
               <LanguageSelector
-                label="languageFrom"
+                label="Translate language"
                 value={targetLanguage}
                 onChange={setTargetLanguage}
               />
@@ -65,7 +203,7 @@ export default function MainContainer() {
           </div>
 
           <div className="flex justify-center mt-8">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-4">
               <button
                 onClick={handleTranslate}
                 disabled={!sourceText.trim()}
@@ -73,10 +211,10 @@ export default function MainContainer() {
                   flex items-center justify-center gap-2 
                   ${
                     !sourceText.trim()
-                      ? "bg-blue-400"
+                      ? "bg-blue-400 cursor-not-allowed"
                       : "bg-blue-600 hover:bg-blue-700"
                   }
-                  text-white font-medium py-3 px-6 rounded-lg transition-colors
+                  text-white font-medium py-3 px-6 rounded-lg transition-colors cursor-pointer
                 `}
               >
                 <svg
@@ -94,19 +232,59 @@ export default function MainContainer() {
                 </svg>
                 Translate
               </button>
+
               <button
-                onClick={handleTextToSpeech}
-                disabled={!sourceText.trim()}
+                onClick={toggleSpeechRecognition}
                 className={`
-                  p-3 rounded-lg transition-colors
+                  p-3 rounded-lg transition-colors flex items-center justify-center
                   ${
-                    !sourceText.trim()
-                      ? "bg-red-400"
-                      : "bg-red-500 hover:bg-red-600"
+                    isListening
+                      ? "bg-red-500 hover:bg-red-600"
+                      : speechSupported
+                      ? "bg-green-500 hover:bg-green-600"
+                      : "bg-gray-400 cursor-not-allowed"
                   }
                   text-white
+                  ${speechSupported ? "cursor-pointer" : "cursor-not-allowed"}
                 `}
-                title="Text to Speech"
+                title={
+                  speechSupported
+                    ? isListening
+                      ? "Stop listening"
+                      : "Start voice input"
+                    : "Speech not supported"
+                }
+                disabled={!speechSupported}
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  {isListening ? (
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  ) : (
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                    />
+                  )}
+                </svg>
+                {isListening && <span className="ml-2 text-sm">Stop</span>}
+              </button>
+
+              <button
+                onClick={handleNewTranslation}
+                className="flex items-center justify-center gap-2 bg-gray-600 hover:bg-gray-700 text-white font-medium py-3 px-6 rounded-lg transition-colors cursor-pointer"
+                title="Start new translation"
               >
                 <svg
                   className="w-5 h-5"
@@ -118,9 +296,10 @@ export default function MainContainer() {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth="2"
-                    d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                    d="M12 4v16m8-8H4"
                   />
                 </svg>
+                New
               </button>
             </div>
           </div>
