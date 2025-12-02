@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import LanguageSelector from "./LanguageSelector";
 import Textarea from "./Textarea";
+import LanguageSwap from "./LanguageSwap";
 
 export default function MainContainer() {
   const [sourceText, setSourceText] = useState("");
@@ -124,11 +125,22 @@ export default function MainContainer() {
     }
   };
 
+  const handleSwapLanguages = () => {
+    const tempLang = sourceLanguage;
+    const tempText = sourceText;
+
+    setSourceLanguage(targetLanguage);
+    setTargetLanguage(tempLang);
+    setSourceText(translatedText);
+    setTranslatedText(tempText);
+    finalTranscriptRef.current = translatedText;
+  };
+
   return (
     <div className="min-h-[80vh] bg-gray-50 p-2 flex items-center justify-center">
       <div className="w-full max-w-4xl">
         <div className="bg-white rounded-xl shadow-lg p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-[2fr_auto_2fr] gap-6">
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <h2 className="text-lg font-semibold text-gray-700">From</h2>
@@ -155,32 +167,14 @@ export default function MainContainer() {
                   rows={8}
                   required={true}
                 />
-                {/* <div className="absolute bottom-2 right-2 flex gap-2">
-                  {sourceText && (
-                    <button
-                      onClick={() => {
-                        setSourceText("");
-                        finalTranscriptRef.current = "";
-                      }}
-                      className="p-2 bg-gray-200 hover:bg-gray-300 rounded-full transition-colors cursor-pointer"
-                      title="Clear text"
-                    >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
-                    </button>
-                  )}
-                </div> */}
+              </div>
+            </div>
+            <div className="flex items-center justify-center">
+              <div className="relative">
+                <LanguageSwap
+                  onSwap={handleSwapLanguages}
+                  disabled={isListening}
+                />
               </div>
             </div>
             <div className="space-y-4">
@@ -201,7 +195,6 @@ export default function MainContainer() {
               />
             </div>
           </div>
-
           <div className="flex justify-center mt-8">
             <div className="flex items-center gap-4">
               <button
