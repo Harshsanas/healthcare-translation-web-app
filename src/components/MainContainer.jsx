@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import LanguageSelector from "./LanguageSelector";
-import TextArea from "./TextArea";
+import Textarea from "./Textarea";
 
 export default function MainContainer() {
   const [sourceText, setSourceText] = useState("");
@@ -147,7 +147,7 @@ export default function MainContainer() {
                 onChange={setSourceLanguage}
               />
               <div className="relative">
-                <TextArea
+                <Textarea
                   label="Enter text to translate"
                   value={sourceText}
                   onChange={setSourceText}
@@ -190,7 +190,7 @@ export default function MainContainer() {
                 value={targetLanguage}
                 onChange={setTargetLanguage}
               />
-              <TextArea
+              <Textarea
                 label="Translation"
                 value={translatedText}
                 onChange={setTranslatedText}

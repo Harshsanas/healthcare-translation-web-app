@@ -1,6 +1,6 @@
 import React from "react";
 
-const TextArea = ({
+const Textarea = ({
   value,
   onChange,
   placeholder = "",
@@ -43,4 +43,4 @@ const TextArea = ({
   );
 };
 
-export default TextArea;
+export default Textarea;
