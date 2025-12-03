@@ -118,9 +118,31 @@ export default function MainContainer() {
       );
 
       setTranslatedText(translation);
+
+      // Add rate limit status feedback
+      const status = geminiService.getRateLimitStatus();
+      if (status.remainingRequests < 5) {
+        // Show warning when running low on requests
+        console.warn(
+          `Low on requests: ${status.remainingRequests} left this minute`
+        );
+      }
     } catch (error) {
       console.error("Translation error:", error);
-      setError(error.message || "Translation failed. Please try again.");
+
+      // More specific error messages
+      let errorMessage =
+        error.message || "Translation failed. Please try again.";
+
+      if (errorMessage.includes("Rate limit exceeded")) {
+        errorMessage =
+          "Rate limit exceeded. Free tier allows 15 requests per minute. Please wait 60 seconds and try again.";
+      } else if (errorMessage.includes("API key")) {
+        errorMessage =
+          "API key issue. Please check your Gemini API key configuration.";
+      }
+
+      setError(errorMessage);
       setTranslatedText("");
     } finally {
       setIsTranslating(false);

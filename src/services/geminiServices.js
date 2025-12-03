@@ -1,64 +1,49 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SUPPORTED_LANGUAGES } from "../utils/language";
 
 class GeminiService {
     constructor() {
         const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-        // const apiKey = process.env.GEMINI_API_KEY;
-
-        if (!apiKey) {
-            console.error("GEMINI_API_KEY is not set in environment variables");
-            throw new Error("API key is required. Please add VITE_GEMINI_API_KEY to your .env file");
-        }
-
-        this.genAI = new GoogleGenerativeAI(apiKey);
-        this.model = this.genAI.getGenerativeModel({
-            model: "gemini-2.0-flash-exp"
-        });
-
-        this.apiKey = apiKey;
+        this.API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
         this.lastRequestTime = 0;
-        this.minRequestInterval = 5000;
-        this.requestWindow = []; 
-        this.maxRequestsPerMinute = 12; 
+        this.minRequestInterval = 1000;
+        this.requestWindow = [];
+        this.maxRequestsPerMinute = 15;
+
+        console.log("✅ Gemini service initialized with direct API");
     }
 
     async waitForRateLimit() {
         const now = Date.now();
+
         this.requestWindow = this.requestWindow.filter(time => now - time < 60000);
+
         if (this.requestWindow.length >= this.maxRequestsPerMinute) {
             const oldestRequest = this.requestWindow[0];
-            const waitTime = 60000 - (now - oldestRequest) + 1000; // Extra 1 second buffer
-            console.log(`⏳ Rate limit: ${this.requestWindow.length} requests in last minute. Waiting ${Math.ceil(waitTime / 1000)}s`);
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-
-            // Re-check after waiting
-            return this.waitForRateLimit();
+            const timeToWait = 60000 - (now - oldestRequest);
+            console.log(`⏳ Rate limit reached. Waiting ${Math.ceil(timeToWait / 1000)} seconds...`);
+            await new Promise(resolve => setTimeout(resolve, timeToWait));
+            this.requestWindow = [];
         }
 
-        // Also enforce minimum interval between requests
-        const timeSinceLastRequest = now - this.lastRequestTime;
-        if (timeSinceLastRequest < this.minRequestInterval) {
-            const waitTime = this.minRequestInterval - timeSinceLastRequest;
-            console.log(`⏳ Minimum interval: waiting ${Math.ceil(waitTime / 1000)}s`);
-            await new Promise(resolve => setTimeout(resolve, waitTime));
+        if (this.lastRequestTime && (now - this.lastRequestTime) < this.minRequestInterval) {
+            const timeToWait = this.minRequestInterval - (now - this.lastRequestTime);
+            await new Promise(resolve => setTimeout(resolve, timeToWait));
         }
-
-        // Record this request
         this.lastRequestTime = Date.now();
         this.requestWindow.push(this.lastRequestTime);
+
+        const status = this.getRateLimitStatus();
+        console.log(`📊 Rate limit: ${status.requestsInLastMinute}/${this.maxRequestsPerMinute} requests this minute`);
     }
 
     async translate(text, sourceLang, targetLang) {
         try {
-            // Wait to respect rate limits
             await this.waitForRateLimit();
 
             const sourceLangName = this.getLanguageName(sourceLang);
             const targetLangName = this.getLanguageName(targetLang);
 
-            // IMPROVED: Better prompt for medical context
             const prompt = `Translate the following text from ${sourceLangName} to ${targetLangName}. 
 This may contain medical terminology, so ensure accuracy for medical terms.
 Provide only the translation without any additional text or explanations.
@@ -67,72 +52,84 @@ Text: "${text}"
 
 Translation:`;
 
-            const result = await this.model.generateContent(prompt);
-            const response = await result.response;
-            return response.text().trim();
-        } catch (error) {
-            console.error("Translation error:", error);
+            console.log("🌐 Translating:", text.substring(0, 50) + "...");
 
-            if (error.message.includes("429")) {
-                throw new Error("Rate limit exceeded. Free tier allows 15 requests per minute. Please wait 60 seconds and try again.");
-            } else if (error.message.includes("404") || error.message.includes("not found")) {
-                throw new Error("Model not available. Please verify your API key.");
-            } else if (error.message.includes("API key") || error.message.includes("403")) {
-                throw new Error("Invalid API key. Get a new key at https://aistudio.google.com/apikey");
-            } else if (error.message.includes("PERMISSION_DENIED")) {
-                throw new Error("API key doesn't have permission. Create a new key.");
-            } else {
-                throw new Error(`Translation failed: ${error.message}`);
+            const response = await fetch(this.API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    contents: [
+                        {
+                            parts: [
+                                {
+                                    text: prompt
+                                }
+                            ]
+                        }
+                    ],
+                    generationConfig: {
+                        temperature: 0.7,
+                        topK: 1,
+                        topP: 1,
+                        maxOutputTokens: 2048,
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error?.message || `HTTP error! status: ${response.status}`);
             }
+
+            const data = await response.json();
+
+            let translation = "";
+            if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                translation = data.candidates[0].content.parts[0].text.trim();
+            } else {
+                console.warn("Unexpected response format:", data);
+                throw new Error("Unexpected response format from Gemini API");
+            }
+
+            console.log("✅ Translation successful");
+            return translation;
+
+        } catch (error) {
+            console.error("❌ Translation error:", error);
+            throw this.handleApiError(error);
         }
     }
 
-    /**
-     * Detect language of given text (DISABLED to save API calls)
-     * Returns null to let the UI keep current language
-     * @param {string} text - Text to detect language
-     * @returns {Promise<string|null>} Detected language code or null
-     */
+    handleApiError(error) {
+        console.error("API Error details:", error.message);
+
+        if (error.message.includes("429")) {
+            return new Error("Rate limit exceeded. Please wait 60 seconds and try again.");
+        } else if (error.message.includes("400")) {
+            return new Error("Invalid request. Please check your API key permissions.");
+        } else if (error.message.includes("403")) {
+            return new Error("API key doesn't have permission.");
+        } else if (error.message.includes("API key")) {
+            return new Error("Invalid API key format.");
+        } else if (error.message.includes("quota") || error.message.includes("exceeded")) {
+            return new Error("API quota exceeded.");
+        } else {
+            return new Error(`Translation failed: ${error.message || 'Unknown error'}`);
+        }
+    }
+
     async detectLanguage(text) {
-        // DISABLED: Auto-detection uses too many API calls
-        // Users can manually select the correct language instead
         console.log("Language auto-detection disabled to save API quota");
         return null;
-
-        /* Original code - uncomment if you have paid tier
-        try {
-            await this.waitForRateLimit();
-            
-            const prompt = `Detect the language of this text. Return only the ISO 639-1 language code (2 letters).
-
-Text: "${text.substring(0, 100)}"
-
-Language code:`;
-
-            const result = await this.model.generateContent(prompt);
-            const response = await result.response;
-            return response.text().trim().toLowerCase();
-        } catch (error) {
-            console.error("Language detection error:", error);
-            return null;
-        }
-        */
     }
 
-    /**
-     * Get full language name from code
-     * @param {string} code - Language code
-     * @returns {string} Language name
-     */
     getLanguageName(code) {
         const lang = SUPPORTED_LANGUAGES.find(l => l.geminiCode === code);
         return lang ? lang.name : code;
     }
 
-    /**
-     * Get rate limit status
-     * @returns {object} Rate limit information
-     */
     getRateLimitStatus() {
         const now = Date.now();
         const recentRequests = this.requestWindow.filter(time => now - time < 60000);
