@@ -249,7 +249,7 @@ export default function MainContainer() {
           <div className="grid grid-cols-1 lg:grid-cols-[2fr_auto_2fr] gap-8">
             <div className="space-y-6">
               <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold text-gray-800">
+                <h2 className="text-xl font-semibold text-gray-800 w-full text-center">
                   Source Text
                 </h2>
                 <div className="flex items-center gap-3">
@@ -285,8 +285,6 @@ export default function MainContainer() {
                   className="border-2 border-gray-200 focus:border-blue-500 transition-colors"
                 />
               </div>
-
-              {/* NEW: Medical terms indicator */}
               {medicalTermsDetected.length > 0 && (
                 <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
                   <div className="flex items-start gap-2">
